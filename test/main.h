@@ -1,6 +1,6 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-void print();
+void print(const char* str);
 
 #endif

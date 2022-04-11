@@ -1,7 +1,8 @@
 #include "main.h"
 
 int main(void){
-  print();
+  // here, the first argument is in %rdi
+  print("teste\n");
   
   return 0;
 }
