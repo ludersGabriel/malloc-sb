@@ -2,7 +2,7 @@
 
 int main(void){
   // here, the first argument is in %rdi
-  print("teste\n");
+  print("wqomeiqkw\n");
   
   return 0;
 }
