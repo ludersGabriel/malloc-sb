@@ -4,6 +4,7 @@ int main() {
   // void *a, *b;
   iniciaAlocador();
   printTopo();
+  imprimeMapa();
 
   // imprimeMapa();
   // a=alocaMem(240);
