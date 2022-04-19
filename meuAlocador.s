@@ -3,6 +3,8 @@
 # variaveis globais
 topoInicialHeap: .quad 0
 topoHeap: .quad 0
+MEM_POOL: .quad 100
+
 str1: .string "Init heap space\n"
 strLabels: .string "oc, qtd: %ld, %ld\n" 
 str2: .string "topoInit, actualTopo: %ld, %ld\n"
@@ -12,7 +14,7 @@ strUSED: .string "+"
 strENTER: .string "\n"
 
 #constantes
-.equ MEM_POOL, 100
+
 .equ UNUSED, 0
 .equ USED, 1
 
@@ -23,10 +25,12 @@ iniciaAlocador:
   pushq %rbp
   movq %rsp, %rbp
 
+  # printf to adjust brk's value
   movq $0, %rax
   movq $str1, %rdi
   call printf
 
+  # get current brk value
   movq $0, %rdi
   movq $12, %rax
   syscall
@@ -34,7 +38,7 @@ iniciaAlocador:
 
   # sets the first mem pool
   movq %rax, %rdi
-  addq $MEM_POOL, %rdi
+  addq MEM_POOL, %rdi
   addq $16, %rdi
   movq $12, %rax
   syscall
@@ -43,7 +47,8 @@ iniciaAlocador:
   # write initial labels
   movq topoInicialHeap, %rax
   movq $UNUSED, (%rax)
-  movq $MEM_POOL, 8(%rax)
+  movq MEM_POOL, %rbx
+  movq %rbx, 8(%rax)
 
   popq %rbp
   ret
@@ -52,6 +57,7 @@ finalizaAlocador:
   pushq %rbp
   movq %rsp, %rbp
 
+  # sets brk to topoInicialHeap
   movq topoInicialHeap, %rdi
   movq $12, %rax
   syscall
@@ -63,11 +69,13 @@ imprimeMapa:
   pushq %rbp
   movq %rsp, %rbp 
 
+  # extern for going from the first block to the last
   movq topoInicialHeap, %rax
   forImprime:
     cmpq topoHeap, %rax
     jge endForImprime
 
+    # for to print hashtags
     movq $0, %rbx
     forManager:
       cmpq $16, %rbx
@@ -83,6 +91,7 @@ imprimeMapa:
       jmp forManager
     endForManager:
 
+    # condition that decides if - or + needs to be printed
     movq $UNUSED, %rbx
     cmpq (%rax), %rbx
     je elseImprime
@@ -92,6 +101,7 @@ imprimeMapa:
       movq $strUNUSED, %rdx
     endIfImprime:
 
+    # for to print - or +
     movq 8(%rax), %rcx
     movq $0, %rbx
     forImprimeData:
@@ -114,6 +124,7 @@ imprimeMapa:
       jmp forImprimeData
     endForImprimeData:
 
+    # prints \n
     pushq %rcx
     pushq %rax
     pushq %rdx
@@ -133,6 +144,89 @@ imprimeMapa:
   endForImprime:
     popq %rbp
     ret
+
+mergeBlocks:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  movq $0, %r15
+  movq topoInicialHeap, %rbx
+  # extern for, going from topoInicialHeap to topoHeap
+  forMerge: 
+    cmpq topoHeap, %rbx
+    jge endForMerge
+
+    movq (%rbx), %r10
+    movq $UNUSED, %r11
+    cmpq %r10, %r11
+    # checks if the current pos == UNUSED
+    jne endIfMergeUnused 
+      movq %rbx, %r15
+      movq %rbx, %r12
+      addq 8(%rbx), %r12
+      addq $16, %r12
+      
+      # intern for, going from rbx + 8(rbx) + 16 < topoHeap && pos == UNUSED
+      forMergeJ: 
+        cmpq topoHeap, %r12
+        jge endIfMergeUnused 
+        movq (%r12), %r10
+        cmpq %r10, %r11
+        jne endForMergeJ
+
+        movq 8(%rbx), %rdx
+        addq 8(%r12), %rdx
+        addq $16, %rdx
+        movq %rdx, 8(%rbx)
+
+        movq 8(%r12), %rdx
+        addq %rdx, %r12
+        addq $16, %r12
+        jmp forMergeJ
+      endForMergeJ:
+    endIfMergeUnused:
+    movq 8(%rbx), %rdx
+    addq %rdx, %rbx
+    addq $16, %rbx
+    jmp forMerge
+  endForMerge:
+  movq $0, %r14
+  cmpq %r15, %r14
+  je mergeReturn
+    movq %r15, %rax
+  mergeReturn:
+  popq %rbp
+  ret
+
+expandMem:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  # MEM_POOL <- MEM_POOL * 2
+  movq $2, %rax
+  movq MEM_POOL, %rbx
+  imul %rbx
+  movq %rax, MEM_POOL
+
+  # brk <- brk + MEM_POOL + 16 (labels)
+  movq topoHeap, %rbx
+  movq %rbx, %rdi
+  addq MEM_POOL, %rdi
+  addq $16, %rdi
+  movq $12, %rax
+  syscall
+  movq %rax, topoHeap
+
+  # writing labels
+  movq $UNUSED, (%rbx)
+  movq MEM_POOL, %rdx
+  movq %rdx, 8(%rbx)
+  movq %rbx, %rax
+
+  call mergeBlocks
+
+  popq %rbp
+  ret
 
 alocaMem:
   pushq %rbp
@@ -188,8 +282,22 @@ alocaMem:
     addq $16, %rax
     jmp forMem
   endForMem:
-    # if 10 == 0, expandir
+    movq $0, %r15 
+    cmpq %r10, %r15
+    jne endIfReturn
+    
+    pushq %rbx
+    pushq %rdi
+    pushq %rdx
+    pushq %rsi
+    call expandMem
+    popq %rsi
+    popq %rdx
+    popq %rdi
+    popq %rbx
 
+    jmp forMem
+    endIfReturn:
     movq %r10, %rax
     popq %rbp
     ret
