@@ -1,26 +1,35 @@
 #include "meuAlocador.h" 
 #include <stdio.h>
 int main() {
-  void *a = NULL, *b = NULL, *c = NULL;
+  long int *a = NULL, *b = NULL, *c = NULL;
   iniciaAlocador();
   printTopo();
 
   imprimeMapa();
   printf("\n");
-  a=alocaMem(4);
+  a=alocaMem(34);
   printf("end a: %ld\n", (long int) a);
   imprimeMapa();
   printf("\n");
 
-  b=alocaMem(14);
+  *a = 2;
+  printf("conteudo de A: %ld\n", *a);
+
+  b=alocaMem(sizeof(long int) * 2);
   printf("end b: %ld\n", (long int) b);
   imprimeMapa();
   printf("\n");
 
-  c=alocaMem(44);
+  b[0] = 4;
+  b[1] = 6;
+  printf("conteudo de b[0],b[1]: %ld,%ld\n", b[0], b[1]);
+
+  c=alocaMem(104);
   printf("end c: %ld\n", (long int) c);
   imprimeMapa();
   printf("\n");
+  *c = 14;
+  printf("conteudo de c: %ld\n", *c);
 
   // liberaMem(a);
   // imprimeMapa();

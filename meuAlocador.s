@@ -22,7 +22,7 @@ strENTER: .string "\n"
 .equ LABEL_SIZE, 16
 
 .section .text
-.globl iniciaAlocador, printTopo, finalizaAlocador, topoInicialHeap, imprimeMapa, alocaMem
+.globl iniciaAlocador, printTopo, finalizaAlocador, topoInicialHeap, imprimeMapa, alocaMem, liberaMem
 
 iniciaAlocador: 
   pushq %rbp
@@ -338,6 +338,8 @@ firstFit:
   movq %rax, %rsi
   call myMalloc
 
+  addq $LABEL_SIZE, %rax
+
   popq %rbp
   ret
 
@@ -384,6 +386,8 @@ nextFit:
   movq %rax, %rsi
   call myMalloc
 
+  addq $LABEL_SIZE, %rax
+
   popq %rbp
   ret
 
@@ -397,6 +401,9 @@ alocaMem:
   popq %rbp
   ret
 
+# rdi <- addr 
+liberaMem:
+  
 
 printTopo: 
   push %rbp
