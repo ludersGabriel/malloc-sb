@@ -4,6 +4,7 @@
 topoInicialHeap: .quad 0
 topoHeap: .quad 0
 MEM_POOL: .quad 100
+lastAddr: .quad 0
 
 str1: .string "Init heap space\n"
 strLabels: .string "oc, qtd: %ld, %ld\n" 
@@ -13,10 +14,12 @@ strUNUSED: .string "-"
 strUSED: .string "+"
 strENTER: .string "\n"
 
-#constantes
+# constantes
 
 .equ UNUSED, 0
+.equ NULL, 0
 .equ USED, 1
+.equ LABEL_SIZE, 16
 
 .section .text
 .globl iniciaAlocador, printTopo, finalizaAlocador, topoInicialHeap, imprimeMapa, alocaMem
@@ -39,13 +42,14 @@ iniciaAlocador:
   # sets the first mem pool
   movq %rax, %rdi
   addq MEM_POOL, %rdi
-  addq $16, %rdi
+  addq $LABEL_SIZE, %rdi
   movq $12, %rax
   syscall
   movq %rax, topoHeap
 
   # write initial labels
   movq topoInicialHeap, %rax
+  movq %rax, lastAddr
   movq $UNUSED, (%rax)
   movq MEM_POOL, %rbx
   movq %rbx, 8(%rax)
@@ -78,7 +82,7 @@ imprimeMapa:
     # for to print hashtags
     movq $0, %rbx
     forManager:
-      cmpq $16, %rbx
+      cmpq $LABEL_SIZE, %rbx
       jge endForManager
 
       pushq %rax
@@ -139,7 +143,7 @@ imprimeMapa:
 
     movq 8(%rax), %rbx
     addq %rbx, %rax
-    addq $16, %rax
+    addq $LABEL_SIZE, %rax
     jmp forImprime
   endForImprime:
     popq %rbp
@@ -164,9 +168,9 @@ mergeBlocks:
       movq %rbx, %r15
       movq %rbx, %r12
       addq 8(%rbx), %r12
-      addq $16, %r12
+      addq $LABEL_SIZE, %r12
       
-      # intern for, going from rbx + 8(rbx) + 16 < topoHeap && pos == UNUSED
+      # intern for, going from rbx + 8(rbx) + LABEL_SIZE < topoHeap && pos == UNUSED
       forMergeJ: 
         cmpq topoHeap, %r12
         jge endIfMergeUnused 
@@ -176,18 +180,18 @@ mergeBlocks:
 
         movq 8(%rbx), %rdx
         addq 8(%r12), %rdx
-        addq $16, %rdx
+        addq $LABEL_SIZE, %rdx
         movq %rdx, 8(%rbx)
 
         movq 8(%r12), %rdx
         addq %rdx, %r12
-        addq $16, %r12
+        addq $LABEL_SIZE, %r12
         jmp forMergeJ
       endForMergeJ:
     endIfMergeUnused:
     movq 8(%rbx), %rdx
     addq %rdx, %rbx
-    addq $16, %rbx
+    addq $LABEL_SIZE, %rbx
     jmp forMerge
   endForMerge:
   movq $0, %r14
@@ -208,11 +212,11 @@ expandMem:
   imul %rbx
   movq %rax, MEM_POOL
 
-  # brk <- brk + MEM_POOL + 16 (labels)
+  # brk <- brk + MEM_POOL + LABEL_SIZE (labels)
   movq topoHeap, %rbx
   movq %rbx, %rdi
   addq MEM_POOL, %rdi
-  addq $16, %rdi
+  addq $LABEL_SIZE, %rdi
   movq $12, %rax
   syscall
   movq %rax, topoHeap
@@ -228,64 +232,97 @@ expandMem:
   popq %rbp
   ret
 
-alocaMem:
+# rdi <- N
+# rsi <- initial value
+# rdx <- lastValue 
+findNext:
   pushq %rbp
   movq %rsp, %rbp
 
-  movq $0, %r10 # what aloca returns
+  movq $NULL, %r13 # return value
+  movq %rdi, %r9 # rdi == N
+  addq $LABEL_SIZE, %r9 # r9 <- N + LABEL_SIZE
+  movq %rsi, %rax # rax <- rsi has the initial iterator value
+  forFindNext:
+    cmpq %rdx, %rax # rax < %rdx (rdx has the end of the loop)
+    jge endForFindNext
 
-  movq topoInicialHeap, %rax
-  movq %rdi, %rdx # in %rdi we have N
-  addq $16, %rdx  # in %rdx we have N + 16
-  forMem:
-    cmpq topoHeap, %rax
-    jge endForMem
+    movq $UNUSED, %r14
+    cmpq (%rax), %r14
+    jne elseIfFindNextUnused
+    cmpq 8(%rax), %r9 # N + LABEL_SIZE < y
+    jge ifFindNextNY
+    ifFindNextBody:
+      movq %rax, %r13
+      movq %r13, lastAddr
+      jmp endForFindNext
+    ifFindNextNY:
+      cmpq 8(%rax), %rdi # N <= y
+      jg elseIfFindNextUnused
+      jmp ifFindNextBody
+    elseIfFindNextUnused:
+      movq 8(%rax), %r14
+      addq %r14, %rax
+      addq $LABEL_SIZE, %rax
+      jmp forFindNext
+  endForFindNext:
+  movq %r13, %rax
+  popq %rbp
+  ret
 
-    movq $UNUSED, %rbx
-    cmpq (%rax), %rbx
-    jne endIfUsed
-    
-    movq 8(%rax), %rbx # in %rbx, we have y
-    cmpq %rbx, %rdx # N + 16 < Y
-    jge endIf16
-      movq $USED, %r9
-      movq %r9, (%rax)
-      movq %rdi, 8(%rax)
+# rdi <- N
+# rsi <- valid addr
+myMalloc:
+  pushq %rbp
+  movq %rsp, %rbp
 
-      movq %rax, %r10
-      addq $16, %r10
+  movq %rdi, %rdx # rdi == N
+  addq $LABEL_SIZE, %rdx # rdx == N + LABEL_SIZE
+  cmpq 8(%rsi), %rdx  # rdx < y
+  jge myMallocIfNY
+    movq 8(%rsi), %rcx
 
-      movq %rax, %rcx
-      addq $16, %rcx
-      addq 8(%rax), %rcx
+    # update labels
+    movq $USED, %r13
+    movq %r13, (%rsi)
+    movq %rdi, 8(%rsi)
 
-      movq $UNUSED, %r9
-      movq %r9, (%rcx)
-      movq %rbx, %rsi 
-      subq %rdx, %rsi # %rsi = y - (N + 16)
-      movq %rsi, 8(%rcx)
-      jmp endForMem
-    endIf16:
-    cmpq %rbx, %rdi # N < Y
-    jg endIfY
-      movq $USED, %r9
-      movq %r9, (%rax)
+    # jump to next labels
+    movq %rsi, %r14
+    addq $LABEL_SIZE, %r14
+    addq %rdi, %r14
 
-      movq %rax, %r10
-      addq $16, %r10
-      jmp endForMem
+    # write next labels
+    movq $UNUSED, %r13
+    movq %r13, (%r14)
+    subq %rdi, %rcx
+    subq $LABEL_SIZE, %rcx
+    movq %rcx, 8(%r14)
 
-    endIfY:
-    endIfUsed:
-    movq 8(%rax), %rbx
-    addq %rbx, %rax
-    addq $16, %rax
-    jmp forMem
-  endForMem:
-    movq $0, %r15 
-    cmpq %r10, %r15
-    jne endIfReturn
-    
+    jmp myMallocReturn
+  myMallocIfNY:
+    # update current labels
+    movq $USED, %r13
+    movq %r13, (%rsi)
+  myMallocReturn:
+  popq %rbp
+  ret
+
+firstFit:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  pushq %rdi
+  movq topoInicialHeap, %rsi
+  movq topoHeap, %rdx
+  call findNext
+  popq %rdi
+
+  # if the addr is not valid, we expand
+  movq $NULL, %r15
+  cmpq %rax, %r15
+  jne firstFitMalloc
+    # subq $32, %rsp <- precisa? 
     pushq %rbx
     pushq %rdi
     pushq %rdx
@@ -295,12 +332,70 @@ alocaMem:
     popq %rdx
     popq %rdi
     popq %rbx
+    # addq $32, %rsp <- precisa?
+    # in %rax, we have a valid addr
+  firstFitMalloc:
+  movq %rax, %rsi
+  call myMalloc
 
-    jmp forMem
-    endIfReturn:
-    movq %r10, %rax
-    popq %rbp
-    ret
+  popq %rbp
+  ret
+
+nextFit:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  pushq %rdi
+  movq lastAddr, %rsi
+  movq topoHeap, %rdx
+  call findNext
+  popq %rdi
+
+  # if the addr is invalid, we call the for again
+  movq $NULL, %r15
+  cmpq %rax, %r15
+  jne nextFitMalloc
+  
+  pushq %rdi
+  movq topoInicialHeap, %rsi
+  movq lastAddr, %rdx
+  call findNext
+  popq %rdi
+
+  # if the addr is invalid, we expand
+  movq $NULL, %r15
+  cmpq %rax, %r15
+  jne nextFitMalloc
+
+    # subq $32, %rsp <- precisa? 
+    pushq %rbx
+    pushq %rdi
+    pushq %rdx
+    pushq %rsi
+    call expandMem
+    popq %rsi
+    popq %rdx
+    popq %rdi
+    popq %rbx
+    # addq $32, %rsp <- precisa?
+    # in %rax, we have a valid addr
+
+  nextFitMalloc:
+  movq %rax, %rsi
+  call myMalloc
+
+  popq %rbp
+  ret
+
+# rdi <- N
+alocaMem:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  call nextFit
+  
+  popq %rbp
+  ret
 
 
 printTopo: 

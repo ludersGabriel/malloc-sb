@@ -17,7 +17,7 @@ int main() {
   imprimeMapa();
   printf("\n");
 
-  c=alocaMem(70);
+  c=alocaMem(44);
   printf("end c: %ld\n", (long int) c);
   imprimeMapa();
   printf("\n");
