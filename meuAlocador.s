@@ -3,12 +3,13 @@
 # variaveis globais
 topoInicialHeap: .quad 0
 topoHeap: .quad 0
-MEM_POOL: .quad 100
+MEM_POOL: .quad 136
 lastAddr: .quad 0
 
 str1: .string "Init heap space\n"
 strLabels: .string "oc, qtd: %ld, %ld\n" 
 str2: .string "topoInit, actualTopo: %ld, %ld\n"
+strLAST: .string "lastAddr = %ld\n"
 strMANAGER: .string "#"
 strUNUSED: .string "-"
 strUSED: .string "+"
@@ -22,7 +23,7 @@ strENTER: .string "\n"
 .equ LABEL_SIZE, 16
 
 .section .text
-.globl iniciaAlocador, printTopo, finalizaAlocador, topoInicialHeap, imprimeMapa, alocaMem, liberaMem
+.globl iniciaAlocador, printTopo, finalizaAlocador, topoInicialHeap, imprimeMapa, alocaMem, liberaMem, printLastAddr
 
 iniciaAlocador: 
   pushq %rbp
@@ -174,19 +175,25 @@ mergeBlocks:
       forMergeJ: 
         cmpq topoHeap, %r12
         jge endIfMergeUnused 
+        # checks if the wanted block is also unused
         movq (%r12), %r10
         cmpq %r10, %r11
         jne endForMergeJ
 
-        movq 8(%rbx), %rdx
-        addq 8(%r12), %rdx
-        addq $LABEL_SIZE, %rdx
-        movq %rdx, 8(%rbx)
+        # updates last addr
+        cmpq %r12, lastAddr
+        jne actualMerge
+          movq %rbx, lastAddr
+        actualMerge:
+          movq 8(%rbx), %rdx
+          addq 8(%r12), %rdx
+          addq $LABEL_SIZE, %rdx
+          movq %rdx, 8(%rbx)
 
-        movq 8(%r12), %rdx
-        addq %rdx, %r12
-        addq $LABEL_SIZE, %r12
-        jmp forMergeJ
+          movq 8(%r12), %rdx
+          addq %rdx, %r12
+          addq $LABEL_SIZE, %r12
+          jmp forMergeJ
       endForMergeJ:
     endIfMergeUnused:
     movq 8(%rbx), %rdx
@@ -228,6 +235,8 @@ expandMem:
   movq %rbx, %rax
 
   call mergeBlocks
+
+  movq %rax, lastAddr
 
   popq %rbp
   ret
@@ -381,13 +390,95 @@ nextFit:
     popq %rbx
     # addq $32, %rsp <- precisa?
     # in %rax, we have a valid addr
-
   nextFitMalloc:
   movq %rax, %rsi
   call myMalloc
 
   addq $LABEL_SIZE, %rax
 
+  popq %rbp
+  ret
+
+# rdi <- N
+bestFit:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  movq $NULL, %r13
+  movq topoInicialHeap, %rax
+  forBestFitFindFirst:
+    cmpq topoHeap, %rax # rax < topoHeap
+    jge endForBestFitFindFirst
+
+    cmpq $UNUSED, (%rax)
+    jne endIfBestFitUnusedFindFirst
+      cmpq 8(%rax), %rdi # N <= y
+      jg endIfBestFitUnusedFindFirst
+      
+      movq %rax, %r13
+      jmp endForBestFitFindFirst
+    endIfBestFitUnusedFindFirst:
+    movq 8(%rax), %rdx
+    addq $LABEL_SIZE, %rdx
+    addq %rdx, %rax
+    jmp forBestFitFindFirst
+  endForBestFitFindFirst:
+  # checks if we found the first unused addr
+  movq $NULL, %r14
+  cmpq %r13, %r14
+  je bestFitExpand
+    movq 8(%r13), %r14
+    subq %rdi, %r14 # r14 <- y - N
+  
+    movq %r13, %rax
+    movq 8(%rax), %rdx
+    addq $LABEL_SIZE, %rdx
+    addq %rdx, %rax
+    forBestFitFindPos:
+      cmpq topoHeap, %rax
+      jge endForBestFitFindPos
+      
+      cmpq $UNUSED, (%rax)
+      jne forBestFitFindPosIncrement
+
+      cmpq 8(%rax), %rdi # N <= y
+      jg forBestFitFindPosIncrement
+        movq 8(%rax), %r15
+        subq %rdi, %r15
+
+        cmpq %r14, %r15 # r15 < r14
+        jge forBestFitFindPosIncrement
+          # updates the valid addr for malloc and the difference of sizes
+          movq %rax, %r13
+          movq %r15, %r14
+      forBestFitFindPosIncrement: 
+      movq 8(%rax), %rdx
+      addq $LABEL_SIZE, %rdx
+      addq %rdx, %rax
+      jmp forBestFitFindPos
+    endForBestFitFindPos:
+    
+    movq %r13, %rax
+    movq %rax, %rsi
+    call myMalloc
+    
+    jmp bestFitReturn
+  bestFitExpand:
+    pushq %rbx
+    pushq %rdi
+    pushq %rdx
+    pushq %rsi
+    call expandMem
+    popq %rsi
+    popq %rdx
+    popq %rdi
+    popq %rbx
+
+    movq %rax, %rsi
+    call myMalloc
+    
+  bestFitReturn:
+  addq $LABEL_SIZE, %rax
   popq %rbp
   ret
 
@@ -403,10 +494,19 @@ alocaMem:
 
 # rdi <- addr 
 liberaMem:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  subq $LABEL_SIZE, %rdi 
+  movq $UNUSED, (%rdi)
   
+  call mergeBlocks
+
+  popq %rbp
+  ret  
 
 printTopo: 
-  push %rbp
+  pushq %rbp
   movq %rsp, %rbp
   
   movq topoInicialHeap, %rbp
@@ -419,6 +519,18 @@ printTopo:
   movq $strLabels, %rdi
   movq (%rbp), %rsi
   movq 8(%rbp), %rdx
+  call printf
+
+  popq %rbp
+  ret
+
+printLastAddr:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  movq $strLAST, %rdi
+  movq lastAddr, %rsi
+  movq $0, %rax
   call printf
 
   popq %rbp

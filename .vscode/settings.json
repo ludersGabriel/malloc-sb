@@ -1,5 +1,6 @@
 {
   "files.associations": {
-    "meualocador.h": "c"
+    "meualocador.h": "c",
+    "stdio.h": "c"
   }
 }
