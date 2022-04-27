@@ -527,11 +527,13 @@ printTopo:
   
   movq topoInicialHeap, %rbp
   
+  movq $0, %rax
   movq $str2, %rdi
   movq topoInicialHeap, %rsi
   movq topoHeap, %rdx
   call printf
 
+  movq $0, %rax
   movq $strLabels, %rdi
   movq (%rbp), %rsi
   movq 8(%rbp), %rdx
