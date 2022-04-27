@@ -3,7 +3,7 @@
 # variaveis globais
 topoInicialHeap: .quad 0
 topoHeap: .quad 0
-MEM_POOL: .quad 136
+MEM_POOL: .quad 4096
 lastAddr: .quad 0
 
 str1: .string "Init heap space\n"
@@ -285,6 +285,7 @@ myMalloc:
   pushq %rbp
   movq %rsp, %rbp
 
+  myMallocBegin:
   movq %rdi, %rdx # rdi == N
   addq $LABEL_SIZE, %rdx # rdx == N + LABEL_SIZE
   cmpq 8(%rsi), %rdx  # rdx < y
@@ -311,8 +312,23 @@ myMalloc:
     jmp myMallocReturn
   myMallocIfNY:
     # update current labels
+    cmpq 8(%rsi), %rdi
+    jg myMallocExpand
+
     movq $USED, %r13
     movq %r13, (%rsi)
+    myMallocExpand:
+      pushq %rbx
+      pushq %rdi
+      pushq %rdx
+      pushq %rsi
+      call expandMem
+      popq %rsi
+      popq %rdx
+      popq %rdi
+      popq %rbx
+      movq %rax, %rsi
+      jmp myMallocBegin
   myMallocReturn:
   popq %rbp
   ret
