@@ -3,7 +3,7 @@
 # variaveis globais
 topoInicialHeap: .quad 0
 topoHeap: .quad 0
-MEM_POOL: .quad 136
+MEM_POOL: .quad 512
 lastAddr: .quad 0
 
 str1: .string "Init heap space\n"
@@ -148,6 +148,10 @@ imprimeMapa:
     addq $LABEL_SIZE, %rax
     jmp forImprime
   endForImprime:
+    movq $0, %rax
+    movq $strENTER, %rdi
+    call printf
+
     popq %rbp
     ret
 
@@ -464,8 +468,8 @@ bestFit:
         movq 8(%rax), %r15
         subq %rdi, %r15
 
-        cmpq %r14, %r15 # r15 < r14
-        jge forBestFitFindPosIncrement
+        cmpq %r14, %r15 # r15 > r14
+        jle forBestFitFindPosIncrement
           # updates the valid addr for malloc and the difference of sizes
           movq %rax, %r13
           movq %r15, %r14
@@ -505,7 +509,7 @@ alocaMem:
   pushq %rbp
   movq %rsp, %rbp
 
-  call nextFit
+  call bestFit
   
   popq %rbp
   ret

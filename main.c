@@ -1,27 +1,49 @@
-#include "meuAlocador.h" 
 #include <stdio.h>
-int main() {
-  long int *a = NULL, *b = NULL, *c = NULL, *d = NULL, *e = NULL;
-  iniciaAlocador();
-  printTopo();
-  printLastAddr();
-  imprimeMapa();
-  printf("\n");
+#include "meuAlocador.h"
 
-  a = alocaMem(100);
+int main (long int argc, char** argv) {
+  void *a,*b,*c,*d,*e;
+
+  iniciaAlocador(); 
   imprimeMapa();
-  printf("\n");
+  // 0) estado inicial
+
+  a=(void *) alocaMem(100);
+  imprimeMapa();
+  b=(void *) alocaMem(130);
+  imprimeMapa();
+  c=(void *) alocaMem(120);
+  imprimeMapa();
+  d=(void *) alocaMem(110);
+  imprimeMapa();
+  // 1) Espero ver quatro segmentos ocupados
+
+  liberaMem(b);
+  imprimeMapa(); 
+  liberaMem(d);
+  imprimeMapa(); 
+  // 2) Espero ver quatro segmentos alternando
+  //    ocupados e livres
+
+  b=(void *) alocaMem(50);
+  imprimeMapa();
+  d=(void *) alocaMem(90);
+  imprimeMapa();
+  e=(void *) alocaMem(40);
+  imprimeMapa();
+  // 3) Deduzam
+	
+  liberaMem(c);
+  imprimeMapa(); 
   liberaMem(a);
-
-  b = alocaMem(100);
   imprimeMapa();
-  printf("\n");
-
-  liberaMem(a);
-
+  liberaMem(b);
   imprimeMapa();
-  printf("\n");
+  liberaMem(d);
+  imprimeMapa();
+  liberaMem(e);
+  imprimeMapa();
+   // 4) volta ao estado inicial
 
   finalizaAlocador();
-
 }
