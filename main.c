@@ -8,7 +8,19 @@ int main() {
   imprimeMapa();
   printf("\n");
 
+  a = alocaMem(100);
+  imprimeMapa();
+  printf("\n");
   liberaMem(a);
+
+  b = alocaMem(100);
+  imprimeMapa();
+  printf("\n");
+
+  liberaMem(a);
+
+  imprimeMapa();
+  printf("\n");
 
   finalizaAlocador();
 

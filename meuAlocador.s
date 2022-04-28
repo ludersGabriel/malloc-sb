@@ -14,6 +14,7 @@ strMANAGER: .string "#"
 strUNUSED: .string "-"
 strUSED: .string "+"
 strENTER: .string "\n"
+strHazard: .string "Critical error occurred. Maybe double free\n"
 
 # constantes
 
@@ -521,15 +522,34 @@ liberaMem:
 
   movq $UNUSED, %r15
   cmpq %r15, (%rdi)
-  je liberaMemRet
+  je liberaMemCritical
   
   movq $UNUSED, (%rdi)
   
   call mergeBlocks
-
+  jmp liberaMemRet
+  
+  liberaMemCritical:
+    call criticalHazard
+  
   liberaMemRet: 
   popq %rbp
   ret  
+
+criticalHazard:
+  pushq %rbp
+  movq %rsp, %rbp
+
+  movq $0, %rax
+  movq $strHazard, %rdi
+  call printf
+
+  movq $1, %rdi
+  movq $60, %rax
+  syscall
+
+  popq %rbp
+  ret
 
 printTopo: 
   pushq %rbp
