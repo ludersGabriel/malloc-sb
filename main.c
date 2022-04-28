@@ -1,20 +1,19 @@
 #include "meuAlocador.h" 
 #include <stdio.h>
 int main() {
-  long int *a = NULL, *b = NULL;
+  long int *a = NULL;
   iniciaAlocador();
+  printTopo();
+  printLastAddr();
 
   imprimeMapa();
   printf("\n");
 
-  a=alocaMem(240);  
-  imprimeMapa();
-  printf("\n");
-
-  b=alocaMem(24000);
+  a=alocaMem(155);
+  
   imprimeMapa();
   printf("\n");
 
   finalizaAlocador();
-
 }
+
