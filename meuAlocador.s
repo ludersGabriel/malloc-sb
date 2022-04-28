@@ -3,7 +3,7 @@
 # variaveis globais
 topoInicialHeap: .quad 0
 topoHeap: .quad 0
-MEM_POOL: .quad 154
+MEM_POOL: .quad 136
 lastAddr: .quad 0
 
 str1: .string "Init heap space\n"
@@ -504,7 +504,7 @@ alocaMem:
   pushq %rbp
   movq %rsp, %rbp
 
-  call firstFit
+  call nextFit
   
   popq %rbp
   ret
@@ -513,6 +513,9 @@ alocaMem:
 liberaMem:
   pushq %rbp
   movq %rsp, %rbp
+
+  cmpq $NULL, %rdi
+  je liberaMemRet
 
   subq $LABEL_SIZE, %rdi 
 
